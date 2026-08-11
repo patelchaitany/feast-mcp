@@ -1,0 +1,24 @@
+[project]
+name = "feast-mcp"
+version = "0.1.0"
+description = "Feast MCP server built on the MCP SDK"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+dependencies = [
+    "fastmcp>=3.0",
+    "httpx>=0.24",
+    "pydantic>=2.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pymilvus>=2.4",
+    "milvus-lite",
+    "ruff",
+]
+
+[project.scripts]
+feast-mcp = "feast_mcp.server:main"

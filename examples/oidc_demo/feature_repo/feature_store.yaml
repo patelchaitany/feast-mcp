@@ -1,0 +1,17 @@
+project: feast_mcp_oidc_demo
+provider: local
+registry: data/registry.db
+
+online_store:
+  type: sqlite
+  path: data/online_store.db
+
+offline_store:
+  type: file
+
+auth:
+  type: oidc
+  auth_discovery_url: "http://127.0.0.1:8081/.well-known/openid-configuration"
+  client_id: "feast-demo"
+
+entity_key_serialization_version: 3

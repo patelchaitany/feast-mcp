@@ -1,0 +1,21 @@
+project: mcp_test_project
+provider: local
+registry:
+  path: data/registry.db
+online_store:
+  type: milvus
+  path: data/online_store.db
+  vector_enabled: true
+  embedding_dim: 128
+offline_store:
+  type: file
+feature_server:
+  type: mcp
+  enabled: true
+  mcp_enabled: true
+  mcp_transport: http
+  mcp_server_name: "feast-mcp-test"
+  mcp_server_version: "1.0.0"
+  feature_logging:
+    enabled: false
+entity_key_serialization_version: 3
