@@ -55,9 +55,8 @@ def test_feature_server_endpoint_coverage(feature_server: str) -> None:
 
 def test_registry_endpoint_coverage(registry_server: str) -> None:
     """Warn if any registry endpoint is missing from the manifest."""
-    base_url: str = registry_server.replace("/api/v1", "")
     discovered: list[DiscoveredEndpoint] = auto_discover_endpoints(
-        f"{base_url}/api/v1/openapi.json", ServerType.REGISTRY
+        f"{registry_server}/api/v1/openapi.json", ServerType.REGISTRY
     )
 
     # OpenAPI returns paths without the /api/v1 prefix, but the manifest

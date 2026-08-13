@@ -126,7 +126,7 @@ class TestRegistryServerAuth:
         """Request without Authorization header returns 401."""
         response: httpx.Response = call_rest(
             base_url=auth_registry_server,
-            endpoint="/entities",
+            endpoint="/api/v1/entities",
             method=HttpMethod.GET,
             query_params={"project": "mcp_test_project"},
             headers={},
@@ -140,7 +140,7 @@ class TestRegistryServerAuth:
         token: str = get_token(mock_oidc_server, "admin")
         response: httpx.Response = call_rest(
             base_url=auth_registry_server,
-            endpoint="/entities",
+            endpoint="/api/v1/entities",
             method=HttpMethod.GET,
             query_params={"project": "mcp_test_project"},
             headers={"Authorization": f"Bearer {token}"},
@@ -154,7 +154,7 @@ class TestRegistryServerAuth:
         token: str = get_token(mock_oidc_server, "user")
         response: httpx.Response = call_rest(
             base_url=auth_registry_server,
-            endpoint="/entities",
+            endpoint="/api/v1/entities",
             method=HttpMethod.GET,
             query_params={"project": "mcp_test_project"},
             headers={"Authorization": f"Bearer {token}"},

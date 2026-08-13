@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from typing import Any
+from typing import Any, Optional
 
 import httpx
 
@@ -237,9 +237,11 @@ def auto_discover_endpoints(
 def get_token(
     oidc_url: str,
     username: str,
-    password: str = "password",
+    password: Optional[str] = None,
 ) -> str:
     """Get an access token from the mock OIDC server."""
+    if password is None:
+        password = username
     with httpx.Client(timeout=10.0) as client:
         response: httpx.Response = client.post(
             f"{oidc_url}/token",

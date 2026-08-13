@@ -37,7 +37,8 @@ class FeastClient:
                 json=json,
                 params=params,
             )
-            response.raise_for_status()
+            if response.status_code >= 500:
+                response.raise_for_status()
             if response.headers.get("content-type", "").startswith("application/json"):
                 return response.json()
             return response.text

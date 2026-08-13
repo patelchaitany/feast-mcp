@@ -46,7 +46,7 @@ class DiscoveredEndpoint:
 
 FEATURE_SERVER_TOOLS: list[ToolTestSpec] = [
     ToolTestSpec(
-        tool_name="get_online_features",
+        tool_name="features_get_online_features",
         feast_endpoint="/get-online-features",
         http_method=HttpMethod.POST,
         server_type=ServerType.FEATURE_SERVER,
@@ -62,7 +62,7 @@ FEATURE_SERVER_TOOLS: list[ToolTestSpec] = [
         migrated=True,
     ),
     ToolTestSpec(
-        tool_name="search",
+        tool_name="features_search",
         feast_endpoint="/search",
         http_method=HttpMethod.POST,
         server_type=ServerType.FEATURE_SERVER,
@@ -99,7 +99,7 @@ FEATURE_SERVER_TOOLS: list[ToolTestSpec] = [
         ],
     ),
     ToolTestSpec(
-        tool_name="push",
+        tool_name="features_push",
         feast_endpoint="/push",
         http_method=HttpMethod.POST,
         server_type=ServerType.FEATURE_SERVER,
@@ -143,7 +143,7 @@ FEATURE_SERVER_TOOLS: list[ToolTestSpec] = [
         verify_endpoint="/get-online-features",
     ),
     ToolTestSpec(
-        tool_name="materialize",
+        tool_name="features_materialize",
         feast_endpoint="/materialize",
         http_method=HttpMethod.POST,
         server_type=ServerType.FEATURE_SERVER,
@@ -157,7 +157,7 @@ FEATURE_SERVER_TOOLS: list[ToolTestSpec] = [
         mutation=True,
     ),
     ToolTestSpec(
-        tool_name="materialize_incremental",
+        tool_name="features_materialize_incremental",
         feast_endpoint="/materialize-incremental",
         http_method=HttpMethod.POST,
         server_type=ServerType.FEATURE_SERVER,
@@ -170,7 +170,7 @@ FEATURE_SERVER_TOOLS: list[ToolTestSpec] = [
         mutation=True,
     ),
     ToolTestSpec(
-        tool_name="health",
+        tool_name="features_health",
         feast_endpoint="/health",
         http_method=HttpMethod.GET,
         server_type=ServerType.FEATURE_SERVER,
@@ -178,7 +178,7 @@ FEATURE_SERVER_TOOLS: list[ToolTestSpec] = [
         migrated=True,
     ),
     ToolTestSpec(
-        tool_name="list_vector_stores",
+        tool_name="features_list_vector_stores",
         feast_endpoint="/v1/vector_stores",
         http_method=HttpMethod.GET,
         server_type=ServerType.FEATURE_SERVER,
@@ -186,7 +186,7 @@ FEATURE_SERVER_TOOLS: list[ToolTestSpec] = [
         migrated=True,
     ),
     ToolTestSpec(
-        tool_name="get_vector_store",
+        tool_name="features_get_vector_store",
         feast_endpoint="/v1/vector_stores/{vector_store_id}",
         http_method=HttpMethod.GET,
         server_type=ServerType.FEATURE_SERVER,
@@ -198,7 +198,7 @@ FEATURE_SERVER_TOOLS: list[ToolTestSpec] = [
         migrated=True,
     ),
     ToolTestSpec(
-        tool_name="vector_store_search",
+        tool_name="features_vector_store_search",
         feast_endpoint="/v1/vector_stores/{vector_store_id}/search",
         http_method=HttpMethod.POST,
         server_type=ServerType.FEATURE_SERVER,
@@ -222,11 +222,12 @@ FEATURE_SERVER_TOOLS: list[ToolTestSpec] = [
 REGISTRY_TOOLS: list[ToolTestSpec] = [
     # --- entities (5 routes) ---
     ToolTestSpec(
-        tool_name="list_entities",
+        tool_name="registry_list_entities",
         feast_endpoint="/api/v1/entities",
         http_method=HttpMethod.GET,
         server_type=ServerType.REGISTRY,
         sample_inputs=[{"project": "mcp_test_project"}],
+        migrated=True,
     ),
     ToolTestSpec(
         tool_name="list_all_entities",
@@ -236,11 +237,12 @@ REGISTRY_TOOLS: list[ToolTestSpec] = [
         sample_inputs=[{}],
     ),
     ToolTestSpec(
-        tool_name="get_entity",
+        tool_name="registry_get_entity",
         feast_endpoint="/api/v1/entities/{name}",
         http_method=HttpMethod.GET,
         server_type=ServerType.REGISTRY,
         sample_inputs=[{"name": "driver", "project": "mcp_test_project"}],
+        migrated=True,
     ),
     ToolTestSpec(
         tool_name="apply_entity",
@@ -269,11 +271,12 @@ REGISTRY_TOOLS: list[ToolTestSpec] = [
     ),
     # --- data_sources (5 routes) ---
     ToolTestSpec(
-        tool_name="list_data_sources",
+        tool_name="registry_list_data_sources",
         feast_endpoint="/api/v1/data_sources",
         http_method=HttpMethod.GET,
         server_type=ServerType.REGISTRY,
         sample_inputs=[{"project": "mcp_test_project"}],
+        migrated=True,
     ),
     ToolTestSpec(
         tool_name="list_all_data_sources",
@@ -283,13 +286,14 @@ REGISTRY_TOOLS: list[ToolTestSpec] = [
         sample_inputs=[{}],
     ),
     ToolTestSpec(
-        tool_name="get_data_source",
+        tool_name="registry_get_data_source",
         feast_endpoint="/api/v1/data_sources/{name}",
         http_method=HttpMethod.GET,
         server_type=ServerType.REGISTRY,
         sample_inputs=[
-            {"name": "driver_stats_source", "project": "mcp_test_project"},
+            {"name": "driver_hourly_stats_source", "project": "mcp_test_project"},
         ],
+        migrated=True,
     ),
     ToolTestSpec(
         tool_name="apply_data_source",
@@ -316,11 +320,12 @@ REGISTRY_TOOLS: list[ToolTestSpec] = [
     ),
     # --- feature_views (5 routes) ---
     ToolTestSpec(
-        tool_name="list_feature_views",
+        tool_name="registry_list_feature_views",
         feast_endpoint="/api/v1/feature_views",
         http_method=HttpMethod.GET,
         server_type=ServerType.REGISTRY,
         sample_inputs=[{"project": "mcp_test_project"}],
+        migrated=True,
     ),
     ToolTestSpec(
         tool_name="list_all_feature_views",
@@ -330,13 +335,14 @@ REGISTRY_TOOLS: list[ToolTestSpec] = [
         sample_inputs=[{}],
     ),
     ToolTestSpec(
-        tool_name="get_feature_view",
+        tool_name="registry_get_feature_view",
         feast_endpoint="/api/v1/feature_views/{name}",
         http_method=HttpMethod.GET,
         server_type=ServerType.REGISTRY,
         sample_inputs=[
             {"name": "driver_hourly_stats", "project": "mcp_test_project"},
         ],
+        migrated=True,
     ),
     ToolTestSpec(
         tool_name="apply_feature_view",
@@ -365,11 +371,12 @@ REGISTRY_TOOLS: list[ToolTestSpec] = [
     ),
     # --- feature_services (5 routes) ---
     ToolTestSpec(
-        tool_name="list_feature_services",
+        tool_name="registry_list_feature_services",
         feast_endpoint="/api/v1/feature_services",
         http_method=HttpMethod.GET,
         server_type=ServerType.REGISTRY,
         sample_inputs=[{"project": "mcp_test_project"}],
+        migrated=True,
     ),
     ToolTestSpec(
         tool_name="list_all_feature_services",
@@ -379,13 +386,14 @@ REGISTRY_TOOLS: list[ToolTestSpec] = [
         sample_inputs=[{}],
     ),
     ToolTestSpec(
-        tool_name="get_feature_service",
+        tool_name="registry_get_feature_service",
         feast_endpoint="/api/v1/feature_services/{name}",
         http_method=HttpMethod.GET,
         server_type=ServerType.REGISTRY,
         sample_inputs=[
             {"name": "driver_activity", "project": "mcp_test_project"},
         ],
+        migrated=True,
     ),
     ToolTestSpec(
         tool_name="apply_feature_service",
@@ -416,11 +424,12 @@ REGISTRY_TOOLS: list[ToolTestSpec] = [
     ),
     # --- features (5 routes, ALL read-only) ---
     ToolTestSpec(
-        tool_name="list_features",
+        tool_name="registry_list_features",
         feast_endpoint="/api/v1/features",
         http_method=HttpMethod.GET,
         server_type=ServerType.REGISTRY,
         sample_inputs=[{"project": "mcp_test_project"}],
+        migrated=True,
     ),
     ToolTestSpec(
         tool_name="get_feature",
@@ -614,18 +623,20 @@ REGISTRY_TOOLS: list[ToolTestSpec] = [
     ),
     # --- projects (3 routes) ---
     ToolTestSpec(
-        tool_name="list_projects",
+        tool_name="registry_list_projects",
         feast_endpoint="/api/v1/projects",
         http_method=HttpMethod.GET,
         server_type=ServerType.REGISTRY,
         sample_inputs=[{}],
+        migrated=True,
     ),
     ToolTestSpec(
-        tool_name="get_project",
+        tool_name="registry_get_project",
         feast_endpoint="/api/v1/projects/{name}",
         http_method=HttpMethod.GET,
         server_type=ServerType.REGISTRY,
         sample_inputs=[{"name": "mcp_test_project"}],
+        migrated=True,
     ),
     ToolTestSpec(
         tool_name="refresh_registry",
@@ -651,7 +662,7 @@ REGISTRY_TOOLS: list[ToolTestSpec] = [
         sample_inputs=[{}],
     ),
     ToolTestSpec(
-        tool_name="get_object_relationships",
+        tool_name="registry_get_lineage",
         feast_endpoint="/api/v1/lineage/objects/{object_type}/{object_name}",
         http_method=HttpMethod.GET,
         server_type=ServerType.REGISTRY,
@@ -662,13 +673,15 @@ REGISTRY_TOOLS: list[ToolTestSpec] = [
                 "project": "mcp_test_project",
             },
         ],
+        migrated=True,
     ),
     ToolTestSpec(
-        tool_name="get_complete_lineage",
+        tool_name="registry_get_lineage",
         feast_endpoint="/api/v1/lineage/complete",
         http_method=HttpMethod.GET,
         server_type=ServerType.REGISTRY,
         sample_inputs=[{"project": "mcp_test_project"}],
+        migrated=True,
     ),
     ToolTestSpec(
         tool_name="get_complete_lineage_all",
@@ -805,11 +818,12 @@ REGISTRY_TOOLS: list[ToolTestSpec] = [
     ),
     # --- search (1 route, read-only) ---
     ToolTestSpec(
-        tool_name="search_registry",
+        tool_name="registry_search_registry",
         feast_endpoint="/api/v1/search",
         http_method=HttpMethod.GET,
         server_type=ServerType.REGISTRY,
         sample_inputs=[{"query": "driver"}],
+        migrated=True,
     ),
     # --- compute_engines (3 routes, ALL read-only) ---
     ToolTestSpec(

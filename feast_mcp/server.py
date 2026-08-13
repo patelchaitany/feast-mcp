@@ -1,251 +1,37 @@
 """Feast MCP server built on FastMCP.
 
-Acts as a proxy — every tool call is forwarded to the upstream Feast
-feature server over HTTP.  The caller's bearer token (OIDC or
-Kubernetes SA token) is passed through so that the feature server
-performs its own auth/RBAC checks.
+Composes two sub-servers behind a single MCP endpoint:
+
+- **features** — proxies to the Feast feature server (online features,
+  vector search, push, materialization).  Always mounted.
+- **registry** — proxies to the Feast REST registry server (browse
+  feature views, entities, data sources, lineage).  Mounted only when
+  ``--registry-url`` is provided.
+
+The caller's bearer token (OIDC or Kubernetes SA token) is passed
+through so that upstream servers perform their own auth/RBAC checks.
 """
 
 import argparse
 import logging
 import os
-from typing import Any, Dict, List, Optional, Union
 
 from dotenv import load_dotenv
 
 from fastmcp import FastMCP
 
-from feast_mcp.auth import (
-    create_oidc_auth,
-    get_auth_token,
-)
+from feast_mcp.auth import create_oidc_auth
 from feast_mcp.client import FeastClient
 
 logger = logging.getLogger(__name__)
 
 mcp = FastMCP(
-    "feast-feature-store",
-    instructions="Feast Feature Store — retrieve online features, search documents, manage materialization",
+    "feast",
+    instructions=(
+        "Feast Feature Store — retrieve online features, search documents, "
+        "manage materialization, and browse the feature registry."
+    ),
 )
-
-_client: Optional[FeastClient] = None
-
-
-def _get_client() -> FeastClient:
-    if _client is None:
-        raise RuntimeError(
-            "FeastClient not initialised. "
-            "Call configure() or pass --feast-url before starting the server."
-        )
-    return _client
-
-
-def configure(feast_url: str, timeout: float = 30.0) -> None:
-    global _client
-    _client = FeastClient(feast_url, timeout=timeout)
-
-
-# ---------------------------------------------------------------------------
-# Tools
-# ---------------------------------------------------------------------------
-
-
-@mcp.tool
-async def get_online_features(
-    features: List[str],
-    entities: Dict[str, List[Any]],
-    feature_service: Optional[str] = None,
-    full_feature_names: bool = False,
-) -> Any:
-    """Retrieve online feature values for a set of entities.
-
-    Args:
-        features: Feature references in 'feature_view:feature' format.
-        entities: Entity key-value map — each key maps to a list of values.
-        feature_service: Optional feature service name (used instead of features list).
-        full_feature_names: If true, response keys include the feature view name.
-    """
-    body: Dict[str, Any] = {
-        "features": features,
-        "entities": entities,
-        "full_feature_names": full_feature_names,
-    }
-    if feature_service is not None:
-        body["feature_service"] = feature_service
-    return await _get_client().request(
-        "POST", "/get-online-features", token=get_auth_token(), json=body
-    )
-
-
-@mcp.tool
-async def search(
-    features: List[str],
-    top_k: int = 5,
-    query: Optional[List[float]] = None,
-    query_string: Optional[str] = None,
-    feature_service: Optional[str] = None,
-    distance_metric: Optional[str] = None,
-    full_feature_names: bool = False,
-    api_version: int = 2,
-) -> Any:
-    """Vector similarity search against online document embeddings.
-
-    Args:
-        features: Feature references to retrieve.
-        top_k: Number of nearest results to return.
-        query: Query embedding vector (list of floats).
-        query_string: Text query (used when the server handles embedding).
-        feature_service: Optional feature service name.
-        distance_metric: Optional distance metric override.
-        full_feature_names: If true, response keys include the feature view name.
-        api_version: API version for the search endpoint.
-    """
-    body: Dict[str, Any] = {
-        "features": features,
-        "top_k": top_k,
-        "full_feature_names": full_feature_names,
-        "api_version": api_version,
-    }
-    if query is not None:
-        body["query"] = query
-    if query_string is not None:
-        body["query_string"] = query_string
-    if feature_service is not None:
-        body["feature_service"] = feature_service
-    if distance_metric is not None:
-        body["distance_metric"] = distance_metric
-    return await _get_client().request(
-        "POST", "/search", token=get_auth_token(), json=body
-    )
-
-
-@mcp.tool
-async def list_vector_stores() -> Any:
-    """List all available vector stores."""
-    return await _get_client().request(
-        "GET", "/v1/vector_stores", token=get_auth_token()
-    )
-
-
-@mcp.tool
-async def get_vector_store(vector_store_id: str) -> Any:
-    """Get details of a specific vector store.
-
-    Args:
-        vector_store_id: Identifier of the vector store.
-    """
-    return await _get_client().request(
-        "GET",
-        f"/v1/vector_stores/{vector_store_id}",
-        token=get_auth_token(),
-    )
-
-
-@mcp.tool
-async def vector_store_search(
-    vector_store_id: str,
-    query: Union[str, List[str]],
-    max_num_results: int = 10,
-) -> Any:
-    """OpenAI-compatible vector store search.
-
-    Args:
-        vector_store_id: Identifier of the vector store to search.
-        query: Text query or list of text queries.
-        max_num_results: Maximum number of results to return.
-    """
-    body: Dict[str, Any] = {
-        "query": query,
-        "max_num_results": max_num_results,
-    }
-    return await _get_client().request(
-        "POST",
-        f"/v1/vector_stores/{vector_store_id}/search",
-        token=get_auth_token(),
-        json=body,
-    )
-
-
-@mcp.tool
-async def push(
-    push_source_name: str,
-    df: Dict[str, Any],
-    to: str = "online",
-    allow_registry_cache: bool = True,
-    transform_on_write: bool = True,
-) -> str:
-    """Push features into the online or offline store.
-
-    Args:
-        push_source_name: Name of the push source defined in the feature repo.
-        df: Column-oriented dict representing the DataFrame to push.
-        to: Target store — 'online', 'offline', or 'online_and_offline'.
-        allow_registry_cache: Allow using the cached registry.
-        transform_on_write: Apply on-demand transforms before writing.
-    """
-    body: Dict[str, Any] = {
-        "push_source_name": push_source_name,
-        "df": df,
-        "to": to,
-        "allow_registry_cache": allow_registry_cache,
-        "transform_on_write": transform_on_write,
-    }
-    await _get_client().request(
-        "POST", "/push", token=get_auth_token(), json=body
-    )
-    return "ok"
-
-
-@mcp.tool
-async def materialize(
-    start_ts: Optional[str] = None,
-    end_ts: Optional[str] = None,
-    feature_views: Optional[List[str]] = None,
-) -> str:
-    """Materialize features from the offline store to the online store.
-
-    Args:
-        start_ts: Start timestamp (ISO-8601).
-        end_ts: End timestamp (ISO-8601).
-        feature_views: Specific feature views to materialize (all if omitted).
-    """
-    body: Dict[str, Any] = {}
-    if start_ts is not None:
-        body["start_ts"] = start_ts
-    if end_ts is not None:
-        body["end_ts"] = end_ts
-    if feature_views is not None:
-        body["feature_views"] = feature_views
-    await _get_client().request(
-        "POST", "/materialize", token=get_auth_token(), json=body
-    )
-    return "ok"
-
-
-@mcp.tool
-async def materialize_incremental(
-    end_ts: str,
-    feature_views: Optional[List[str]] = None,
-) -> str:
-    """Run incremental materialization up to the given timestamp.
-
-    Args:
-        end_ts: End timestamp (ISO-8601).
-        feature_views: Specific feature views to materialize (all if omitted).
-    """
-    body: Dict[str, Any] = {"end_ts": end_ts}
-    if feature_views is not None:
-        body["feature_views"] = feature_views
-    await _get_client().request(
-        "POST", "/materialize-incremental", token=get_auth_token(), json=body
-    )
-    return "ok"
-
-
-@mcp.tool
-async def health() -> Any:
-    """Check the health of the Feast feature server."""
-    return await _get_client().request("GET", "/health", token=get_auth_token())
 
 
 # ---------------------------------------------------------------------------
@@ -258,8 +44,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Feast MCP Server")
     parser.add_argument(
         "--feast-url",
-        default="http://localhost:6566",
-        help="Base URL of the Feast feature server (default: http://localhost:6566)",
+        default=os.environ.get("FEAST_MCP_FEATURE_SERVER_URL"),
+        help="Base URL of the Feast feature server. When provided, "
+        "feature tools are mounted under the 'features_' prefix "
+        "(env: FEAST_MCP_FEATURE_SERVER_URL)",
+    )
+    parser.add_argument(
+        "--registry-url",
+        default=os.environ.get("FEAST_MCP_REGISTRY_URL"),
+        help="Base URL of the Feast REST registry server. When provided, "
+        "registry tools are mounted under the 'registry_' prefix "
+        "(env: FEAST_MCP_REGISTRY_URL)",
     )
     parser.add_argument(
         "--timeout",
@@ -269,7 +64,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--transport",
-        choices=["stdio", "http", "sse"],
+        choices=["stdio", "http", "streamable-http", "sse"],
         default="stdio",
         help="MCP transport (default: stdio)",
     )
@@ -324,8 +119,31 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    configure(args.feast_url, timeout=args.timeout)
+    if not args.feast_url and not args.registry_url:
+        parser.error(
+            "At least one of --feast-url or --registry-url must be provided "
+            "(or set FEAST_MCP_FEATURE_SERVER_URL / FEAST_MCP_REGISTRY_URL)"
+        )
 
+    # --- Mount feature server tools ---
+    if args.feast_url:
+        from feast_mcp.features import create_features_mcp
+
+        features_client = FeastClient(args.feast_url, timeout=args.timeout)
+        features_mcp = create_features_mcp(features_client)
+        mcp.mount(features_mcp, namespace="features")
+        logger.info("Feature tools mounted from %s", args.feast_url)
+
+    # --- Mount registry tools ---
+    if args.registry_url:
+        from feast_mcp.registry import create_registry_mcp
+
+        registry_client = FeastClient(args.registry_url, timeout=args.timeout)
+        registry_mcp = create_registry_mcp(registry_client)
+        mcp.mount(registry_mcp, namespace="registry")
+        logger.info("Registry tools mounted from %s", args.registry_url)
+
+    # --- Auth ---
     if args.auth_mode == "oidc":
         if not all([args.oidc_discovery_url, args.oidc_client_id]):
             parser.error(
@@ -341,10 +159,11 @@ def main() -> None:
             base_url=base_url,
             audience=args.oidc_audience,
         )
-    else:
-        pass  # No auth — allow unauthenticated connections
 
-    mcp.run(transport=args.transport, port=args.port)
+    run_kwargs = {"transport": args.transport}
+    if args.transport not in ("stdio",):
+        run_kwargs["port"] = args.port
+    mcp.run(**run_kwargs)
 
 
 if __name__ == "__main__":

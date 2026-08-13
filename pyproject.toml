@@ -18,6 +18,11 @@ dev = [
     "pymilvus>=2.4",
     "milvus-lite",
     "ruff",
+    "pyarrow",
+    "feast",
+    "mcp",
+    "PyJWT",
+    "cryptography",
 ]
 
 [project.scripts]

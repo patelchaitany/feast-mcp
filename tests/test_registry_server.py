@@ -46,9 +46,13 @@ def test_registry_tool(
             payload=body_params if spec.http_method == HttpMethod.POST else None,
             query_params=query_params if spec.http_method != HttpMethod.POST else None,
         )
-        # Registry endpoints may return 404 for objects that don't exist yet
+        # Registry endpoints may return non-200 for various reasons:
+        #   404 — object doesn't exist yet
+        #   400 — incomplete sample payload (non-migrated mutation tests)
+        #   500 — server error on missing data
+        #   503 — optional backend not configured (e.g. monitoring)
         # That's OK for baseline — we just need the endpoint to be reachable
-        assert rest_response.status_code in (200, 201, 202, 404, 422), (
+        assert rest_response.status_code in (200, 201, 202), (
             f"REST {spec.http_method.value} {resolved_endpoint} returned "
             f"{rest_response.status_code}: {rest_response.text}"
         )
@@ -58,7 +62,7 @@ def test_registry_tool(
 
         # 2. Call MCP tool on the standalone MCP server
         mcp_result: Any = call_mcp_tool_sync(
-            mcp_url=f"{mcp_server}/sse",
+            mcp_url=f"{mcp_server}/mcp",
             tool_name=spec.tool_name,
             args=sample_input,
         )

@@ -197,7 +197,7 @@ def registry_server(feature_repo_path: Path) -> Generator[str, None, None]:
     """Start feast serve_registry --rest-api as a subprocess, yield the base URL.
 
     Override with FEAST_REGISTRY_SERVER_URL to use an external server.
-    The URL should include the /api/v1 prefix.
+    The URL should be the base URL without any path prefix.
     """
     external_url: str | None = os.environ.get("FEAST_REGISTRY_SERVER_URL")
     if external_url:
@@ -227,7 +227,7 @@ def registry_server(feature_repo_path: Path) -> Generator[str, None, None]:
         process.kill()
         raise
 
-    base_url: str = f"http://localhost:{rest_port}/api/v1"
+    base_url: str = f"http://localhost:{rest_port}"
     yield base_url
 
     process.terminate()
@@ -246,12 +246,14 @@ _MCP_SERVER_MODULE: str = "feast_mcp.server"
 
 
 @pytest.fixture(scope="session")
-def mcp_server(feature_server: str) -> Generator[str, None, None]:
+def mcp_server(
+    feature_server: str, registry_server: str
+) -> Generator[str, None, None]:
     """Start the standalone Feast MCP server as a subprocess.
 
     The MCP server is a proxy — it forwards tool calls to the upstream
-    Feast feature server over HTTP.  It runs on its own port with SSE
-    transport.
+    Feast feature server and registry server over HTTP.  It runs on
+    its own port with streamable-http transport.
 
     Override with FEAST_MCP_SERVER_URL to use an external server.
     """
@@ -269,8 +271,10 @@ def mcp_server(feature_server: str) -> Generator[str, None, None]:
             _MCP_SERVER_MODULE,
             "--feast-url",
             feature_server,
+            "--registry-url",
+            registry_server,
             "--transport",
-            "streamable-http",
+            "http",
             "--port",
             str(port),
         ],
@@ -451,7 +455,7 @@ def auth_registry_server(
     """Start feast serve_registry with OIDC auth.
 
     Override with FEAST_AUTH_REGISTRY_SERVER_URL to use an external server.
-    The URL should include the /api/v1 prefix.
+    The URL should be the base URL without any path prefix.
     """
     external_url: str | None = os.environ.get("FEAST_AUTH_REGISTRY_SERVER_URL")
     if external_url:
@@ -481,7 +485,7 @@ def auth_registry_server(
         process.kill()
         raise
 
-    base_url: str = f"http://localhost:{rest_port}/api/v1"
+    base_url: str = f"http://localhost:{rest_port}"
     yield base_url
 
     process.terminate()
