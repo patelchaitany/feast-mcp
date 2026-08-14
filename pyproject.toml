@@ -12,6 +12,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+server = [
+    "gunicorn>=21.0",
+    "uvicorn>=0.25",
+]
+yaml = [
+    "pyyaml>=6.0",
+]
 dev = [
     "pytest",
     "pytest-asyncio",

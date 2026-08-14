@@ -1,0 +1,27 @@
+# Feast MCP Server Configuration
+#
+# Copy this to feast_mcp.yaml and adjust to your environment.
+# CLI args and env vars override values from this file.
+
+server:
+  transport: http           # stdio | http | streamable-http | sse
+  host: 0.0.0.0
+  port: 8000
+  # workers: 4              # omit for single-process uvicorn
+                             # multi-worker requires http transport (not sse)
+
+features:
+  url: http://localhost:6566
+
+registry:
+  url: http://localhost:8080
+
+timeout: 30
+
+# auth:
+#   mode: oidc
+#   discovery_url: https://keycloak.example.com/realms/feast/.well-known/openid-configuration
+#   client_id: feast-mcp
+#   client_secret: null
+#   audience: null
+#   base_url: https://mcp.example.com:8000

@@ -1,0 +1,11 @@
+.venv/
+.git/
+.pytest_cache/
+__pycache__/
+*.egg-info/
+tests/
+brain/
+Future_work.md
+examples/
+uv.lock
+.env
