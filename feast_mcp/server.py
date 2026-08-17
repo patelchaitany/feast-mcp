@@ -53,6 +53,29 @@ def _mount_servers(cfg: Config) -> None:
         logger.info("Registry tools mounted from %s", cfg.registry.url)
 
 
+def _build_session_store(cfg: Config):
+    """Build the shared OAuth-state store, or None to use FastMCP's default."""
+    if not cfg.session_storage.backend:
+        return None
+
+    from feast_mcp.session_storage import (
+        SessionStorageConfigFactory,
+        build_store,
+    )
+
+    storage_cfg = SessionStorageConfigFactory.create(
+        cfg.session_storage.backend, cfg.session_storage.options
+    )
+    if not storage_cfg.shared:
+        logger.warning(
+            "Session storage backend %r is not shared across processes; "
+            "the OAuth flow may break behind a load balancer with >1 replica.",
+            storage_cfg.backend,
+        )
+    logger.info("OAuth client_storage backend: %s", storage_cfg.backend)
+    return build_store(storage_cfg)
+
+
 def _configure_auth(cfg: Config) -> None:
     if cfg.auth.mode != "oidc":
         return
@@ -64,6 +87,7 @@ def _configure_auth(cfg: Config) -> None:
         client_secret=cfg.auth.client_secret,
         base_url=base_url,
         audience=cfg.auth.audience,
+        client_storage=_build_session_store(cfg),
     )
 
 
@@ -134,6 +158,15 @@ def main() -> None:
     auth_group.add_argument("--oidc-client-secret", default=None)
     auth_group.add_argument("--oidc-audience", default=None)
     auth_group.add_argument("--base-url", default=None)
+    auth_group.add_argument(
+        "--session-storage-backend",
+        default=None,
+        help=(
+            "Shared backend for OAuth state (redis, valkey, postgresql, "
+            "mongodb, disk, memory). Backend options come from feast_mcp.yaml. "
+            "Required for OIDC auth behind a load balancer with >1 replica."
+        ),
+    )
 
     args = parser.parse_args()
 

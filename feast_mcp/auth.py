@@ -28,6 +28,7 @@ from fastmcp.server.auth import AccessToken
 from fastmcp.server.auth.oidc_proxy import OIDCProxy
 from fastmcp.server.dependencies import get_access_token
 from fastmcp.utilities.logging import get_logger
+from key_value.aio.protocols import AsyncKeyValue
 
 logger = get_logger(__name__)
 
@@ -53,7 +54,10 @@ class FeastOIDCProxy(OIDCProxy):
             logger.debug("MCP JWT validation failed, trying direct OIDC provider token")
             validated = await self._token_validator.verify_token(token)
             if validated is not None:
-                logger.debug("Direct OIDC provider token accepted for sub=%s", validated.claims.get("sub"))
+                logger.debug(
+                    "Direct OIDC provider token accepted for sub=%s",
+                    validated.claims.get("sub"),
+                )
             return validated
         except Exception as e:
             logger.debug("Direct OIDC provider token validation also failed: %s", e)
@@ -67,13 +71,24 @@ def create_oidc_auth(
     client_secret: Optional[str] = None,
     base_url: str,
     audience: Optional[str] = None,
+    client_storage: Optional[AsyncKeyValue] = None,
 ) -> FeastOIDCProxy:
+    """Build the OIDC proxy.
+
+    Args:
+        client_storage: Shared ``AsyncKeyValue`` backend for OAuth state
+            (client registrations, transactions, codes, token mappings).
+            Pass a distributed store (Redis, etc.) to keep the OAuth flow
+            working across replicas behind a load balancer. When ``None``,
+            FastMCP falls back to its default on-disk, per-node store.
+    """
     return FeastOIDCProxy(
         config_url=discovery_url,
         client_id=client_id,
         client_secret=client_secret,
         base_url=base_url,
         audience=audience,
+        client_storage=client_storage,
     )
 
 

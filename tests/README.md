@@ -88,6 +88,13 @@ feast serve --port 6566
 # Terminal 2: MCP server (the thing you're developing)
 feast-mcp --feast-url http://localhost:6566 --transport sse --port 8000
 
+# ...or, to exercise OIDC with a shared OAuth-state store (load-balancer safe):
+feast-mcp --feast-url http://localhost:6566 --transport http --port 8000 \
+  --auth-mode oidc \
+  --oidc-discovery-url http://localhost:8081/.well-known/openid-configuration \
+  --oidc-client-id feast-mcp \
+  --session-storage-backend redis   # options via feast_mcp.yaml session_storage.options
+
 # Terminal 3: run tests against them
 FEAST_FEATURE_SERVER_URL=http://localhost:6566 \
 FEAST_MCP_SERVER_URL=http://localhost:8000 \
@@ -254,3 +261,23 @@ Test cases:
 - Invalid/expired JWT -> 401
 - Valid token, wrong role -> 403
 - Valid token, correct role -> 200
+
+### Session storage (load-balanced OIDC)
+
+The OIDC OAuth flow spans multiple requests (`/authorize` -> IdP ->
+`/callback` -> `/token`) whose state the proxy correlates via a
+`key_value.aio` store. Behind a load balancer with more than one replica
+that store must be **shared**, or a `/callback` can land on a replica that
+never saw the matching `/authorize`. Select a shared backend with
+`--session-storage-backend` (or `FEAST_MCP_SESSION_STORAGE_BACKEND`):
+
+```bash
+# Redis-backed OAuth state, safe across replicas
+feast-mcp ... --auth-mode oidc --session-storage-backend redis
+```
+
+Backends: `redis`, `valkey`, `postgresql`, `mongodb`, `disk`, `memory`
+(from `py-key-value-aio`; install the matching extra, e.g.
+`pip install 'py-key-value-aio[redis]'`). Connection options go in
+`feast_mcp.yaml` under `session_storage.options`. `memory` and `disk` are
+node-local and log a warning when selected.

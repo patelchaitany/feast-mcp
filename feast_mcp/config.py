@@ -68,11 +68,26 @@ class AuthConfig:
 
 
 @dataclass(frozen=True)
+class SessionStorageConfig:
+    """Selects the shared ``key_value.aio`` backend for OAuth state.
+
+    ``backend`` is a backend identifier (``redis``, ``valkey``, ``postgresql``,
+    ``mongodb``, ``disk``, ``memory``); ``options`` are backend-specific
+    settings passed through to the store constructor. When ``backend`` is
+    ``None`` the OIDC proxy uses FastMCP's default on-disk, per-node store.
+    """
+
+    backend: Optional[str] = None
+    options: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class Config:
     server: ServerConfig = field(default_factory=ServerConfig)
     features: FeaturesConfig = field(default_factory=FeaturesConfig)
     registry: RegistryConfig = field(default_factory=RegistryConfig)
     auth: AuthConfig = field(default_factory=AuthConfig)
+    session_storage: SessionStorageConfig = field(default_factory=SessionStorageConfig)
     timeout: float = 30.0
 
 
@@ -127,6 +142,12 @@ def load_config(
     feat = file_data.get("features", {}) if isinstance(file_data.get("features"), dict) else {}
     reg = file_data.get("registry", {}) if isinstance(file_data.get("registry"), dict) else {}
     auth_yaml = file_data.get("auth", {}) if isinstance(file_data.get("auth"), dict) else {}
+    storage_yaml = (
+        file_data.get("session_storage", {})
+        if isinstance(file_data.get("session_storage"), dict)
+        else {}
+    )
+    storage_options = storage_yaml.get("options")
     workers_raw = cli.get("workers") or _env("FEAST_MCP_WORKERS") or srv.get("workers")
     workers = int(workers_raw) if workers_raw is not None else None
 
@@ -150,6 +171,12 @@ def load_config(
             client_secret=cli.get("oidc_client_secret") or _env("FEAST_MCP_OIDC_CLIENT_SECRET") or auth_yaml.get("client_secret"),
             audience=cli.get("oidc_audience") or _env("FEAST_MCP_OIDC_AUDIENCE") or auth_yaml.get("audience"),
             base_url=cli.get("base_url") or _env("FEAST_MCP_BASE_URL") or auth_yaml.get("base_url"),
+        ),
+        session_storage=SessionStorageConfig(
+            backend=cli.get("session_storage_backend")
+            or _env("FEAST_MCP_SESSION_STORAGE_BACKEND")
+            or storage_yaml.get("backend"),
+            options=storage_options if isinstance(storage_options, dict) else {},
         ),
         timeout=float(cli.get("timeout") or _env("FEAST_MCP_TIMEOUT") or file_data.get("timeout", 30.0)),
     )

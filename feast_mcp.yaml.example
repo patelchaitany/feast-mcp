@@ -18,6 +18,20 @@ registry:
 
 timeout: 30
 
+# Logging + OpenTelemetry. Logs always go to the console (stderr); when an
+# OTLP endpoint is configured they are ALSO exported to your observability
+# backend. Requires the otel extra: pip install 'feast-mcp[otel]'
+observability:
+  level: INFO               # DEBUG | INFO | WARNING | ERROR
+  format: text              # text | json
+  stdio: true               # emit to the console (stderr)
+  # otel_enabled: true      # defaults to true once otel_endpoint is set
+  # otel_endpoint: http://localhost:4317
+  # otel_protocol: grpc     # grpc | http
+  # otel_service_name: feast-mcp
+  # otel_headers: "authorization=Bearer <token>"
+  # otel_insecure: true
+
 # auth:
 #   mode: oidc
 #   discovery_url: https://keycloak.example.com/realms/feast/.well-known/openid-configuration
@@ -25,3 +39,14 @@ timeout: 30
 #   client_secret: null
 #   audience: null
 #   base_url: https://mcp.example.com:8000
+
+# Shared store for OAuth state (client registrations, authorization codes,
+# token mappings). Required for OIDC auth behind a load balancer with more
+# than one replica — otherwise the /callback and /token requests may hit a
+# replica that never saw the /authorize transaction. Omit to use FastMCP's
+# default on-disk, per-node store.
+#
+# session_storage:
+#   backend: redis          # redis | valkey | postgresql | mongodb | disk | memory
+#   options:                # passed through to the key_value.aio store constructor
+#     url: redis://localhost:6379
