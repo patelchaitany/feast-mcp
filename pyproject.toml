@@ -19,6 +19,10 @@ server = [
 yaml = [
     "pyyaml>=6.0",
 ]
+otel = [
+    "opentelemetry-sdk>=1.20",
+    "opentelemetry-exporter-otlp>=1.20",
+]
 dev = [
     "pytest",
     "pytest-asyncio",

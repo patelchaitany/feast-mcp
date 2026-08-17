@@ -25,6 +25,11 @@ from fastmcp import FastMCP
 from feast_mcp.auth import create_oidc_auth
 from feast_mcp.client import FeastClient
 from feast_mcp.config import Config, load_config
+from feast_mcp.observability import (
+    configure_logging,
+    load_logging_config,
+    shutdown_logging,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +173,22 @@ def main() -> None:
         ),
     )
 
+    log_group = parser.add_argument_group("observability")
+    log_group.add_argument("--log-level", default=None)
+    log_group.add_argument("--log-format", choices=["text", "json"], default=None)
+    log_group.add_argument(
+        "--otel-endpoint",
+        default=None,
+        help="OTLP endpoint for log export (enables OTEL when set), e.g. http://localhost:4317",
+    )
+    log_group.add_argument("--otel-protocol", choices=["grpc", "http"], default=None)
+    log_group.add_argument("--otel-service-name", default=None)
+
     args = parser.parse_args()
+
+    # Configure logging first so all subsequent setup is visible.
+    log_cli = {k: v for k, v in vars(args).items() if v is not None and k != "config"}
+    configure_logging(load_logging_config(config_path=args.config, cli_args=log_cli))
 
     cli_args = {k: v for k, v in vars(args).items() if v is not None and k != "config"}
     cfg = load_config(config_path=args.config, cli_args=cli_args)
@@ -197,12 +217,15 @@ def main() -> None:
     _configure_auth(cfg)
 
     # --- Run ---
-    if cfg.server.transport == "stdio":
-        mcp.run(transport="stdio")
-    elif cfg.server.workers:
-        _run_gunicorn(cfg)
-    else:
-        _run_uvicorn(cfg)
+    try:
+        if cfg.server.transport == "stdio":
+            mcp.run(transport="stdio")
+        elif cfg.server.workers:
+            _run_gunicorn(cfg)
+        else:
+            _run_uvicorn(cfg)
+    finally:
+        shutdown_logging()
 
 
 if __name__ == "__main__":

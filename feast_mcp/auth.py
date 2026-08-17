@@ -26,9 +26,13 @@ from typing import Optional
 
 from fastmcp.server.auth import AccessToken
 from fastmcp.server.auth.oidc_proxy import OIDCProxy
-from fastmcp.server.dependencies import get_access_token
-from fastmcp.utilities.logging import get_logger
+from fastmcp.server.dependencies import (
+    get_access_token,
+    get_http_request,
+)
 from key_value.aio.protocols import AsyncKeyValue
+
+from feast_mcp.observability import get_logger
 
 logger = get_logger(__name__)
 
@@ -92,8 +96,72 @@ def create_oidc_auth(
     )
 
 
+def _request_context() -> tuple[Optional[str], Optional[str]]:
+    """Best-effort ``(client_ip, "METHOD /path")`` of the current request.
+
+    The IP honors ``X-Forwarded-For`` / ``X-Real-IP`` first (the caller is
+    usually behind a load balancer or reverse proxy), then the direct socket
+    peer. Both are ``None`` outside of an HTTP request (e.g. stdio transport).
+    """
+    try:
+        request = get_http_request()
+    except Exception:
+        return None, None
+    if request is None:
+        return None, None
+
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        # First hop is the original client.
+        ip: Optional[str] = forwarded.split(",")[0].strip()
+    elif request.headers.get("x-real-ip"):
+        ip = request.headers["x-real-ip"].strip()
+    else:
+        client = getattr(request, "client", None)
+        ip = getattr(client, "host", None) if client else None
+
+    method = getattr(request, "method", None)
+    path = getattr(getattr(request, "url", None), "path", None)
+    where = f"{method} {path}" if method and path else None
+    return ip, where
+
+
+def _describe_user(access_token: AccessToken) -> str:
+    """Human-readable identity of the authenticated caller for logs."""
+    claims = getattr(access_token, "claims", None) or {}
+    user = (
+        claims.get("preferred_username")
+        or claims.get("email")
+        or claims.get("sub")
+        or getattr(access_token, "subject", None)
+        or "unknown"
+    )
+    client_id = getattr(access_token, "client_id", None)
+    return f"{user} (client_id={client_id})" if client_id else str(user)
+
+
 def get_auth_token() -> Optional[str]:
+    """Return the caller's bearer token, logging who is calling from where.
+
+    Called on every tool invocation, so this is the natural choke point to
+    record per-request auth context: the authenticated user, their source
+    IP, and which request (method + path) they made.
+    """
     access_token: Optional[AccessToken] = get_access_token()
+    ip, where = _request_context()
+
     if access_token is None:
+        logger.info(
+            "Unauthenticated request: ip=%s request=%s",
+            ip or "unknown",
+            where or "n/a",
+        )
         return None
+
+    logger.info(
+        "Authenticated request: user=%s ip=%s request=%s",
+        _describe_user(access_token),
+        ip or "unknown",
+        where or "n/a",
+    )
     return access_token.token

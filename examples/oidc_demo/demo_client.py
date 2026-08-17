@@ -32,7 +32,7 @@ MCP_SERVER = os.getenv("FEAST_MCP_URL", "http://localhost:8000")
 TOOL_CALLS: list[dict[str, Any]] = [
     {
         "name": "Read Online Features",
-        "tool": "get_online_features",
+        "tool": "features_get_online_features",
         "args": {
             "features": [
                 "customer_profile:name",
@@ -46,12 +46,12 @@ TOOL_CALLS: list[dict[str, Any]] = [
     },
     {
         "name": "Health Check",
-        "tool": "health",
+        "tool": "features_health",
         "args": {},
     },
     {
         "name": "List Vector Stores",
-        "tool": "list_vector_stores",
+        "tool": "features_list_vector_stores",
         "args": {},
     },
 ]
@@ -123,6 +123,7 @@ async def run_demo(token: str, username: str) -> None:
         async with ClientSession(read_stream, write_stream) as session:
             await session.initialize()
             tools = (await session.list_tools()).tools
+            print(f"tools name {tools}")
             print(f"  Connected | {len(tools)} tools available")
 
             print(f"\n{'=' * 60}")
