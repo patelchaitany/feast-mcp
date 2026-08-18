@@ -1,0 +1,47 @@
+# OpenTelemetry Collector config for the demo.
+#
+# Accepts OTLP over gRPC (4317) and HTTP (4318), then does two things with
+# every log record:
+#   1. debug        -> prints it to the collector's own console (sanity check)
+#   2. otlphttp     -> ships it to OpenObserve, where you browse it in a UI
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  # Prints received telemetry to the collector's stdout.
+  debug:
+    verbosity: detailed
+
+  # Ships logs to OpenObserve's OTLP HTTP ingestion endpoint.
+  # The exporter appends /v1/logs, giving /api/default/v1/logs (org = default).
+  #
+  # No separate token needed: Authorization is HTTP Basic built straight from
+  # the root credentials, base64("root@example.com:Complexpass@123"). Those are
+  # the same credentials you use to log in to the UI (set in docker-compose.yaml).
+  #
+  # endpoint uses the compose service name "openobserve". If you run the
+  # collector directly on your host instead of via docker compose, change it to
+  # http://localhost:5080/api/default
+  otlphttp/openobserve:
+    endpoint: http://openobserve:5080/api/default
+    headers:
+      Authorization: "Basic cm9vdEBleGFtcGxlLmNvbTpDb21wbGV4cGFzc0AxMjM="
+      stream-name: default
+
+service:
+  pipelines:
+    logs:
+      receivers: [otlp]
+      exporters: [debug, otlphttp/openobserve]
+    # feast-mcp opens a span per HTTP request; the logs above carry that
+    # span's trace_id, and the spans themselves land here so you can view the
+    # request as a trace (Traces tab in OpenObserve) and jump between the two.
+    traces:
+      receivers: [otlp]
+      exporters: [debug, otlphttp/openobserve]

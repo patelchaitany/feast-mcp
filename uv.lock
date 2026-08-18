@@ -861,14 +861,18 @@ dependencies = [
 dev = [
     { name = "cryptography" },
     { name = "feast" },
+    { name = "gunicorn" },
     { name = "mcp" },
     { name = "milvus-lite" },
+    { name = "opentelemetry-exporter-otlp" },
+    { name = "opentelemetry-sdk" },
     { name = "pyarrow" },
     { name = "pyjwt" },
     { name = "pymilvus" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
+    { name = "uvicorn" },
 ]
 otel = [
     { name = "opentelemetry-exporter-otlp" },
@@ -887,6 +891,8 @@ requires-dist = [
     { name = "cryptography", marker = "extra == 'dev'" },
     { name = "fastmcp", specifier = ">=3.0" },
     { name = "feast", marker = "extra == 'dev'" },
+    { name = "feast-mcp", extras = ["otel"], marker = "extra == 'dev'" },
+    { name = "feast-mcp", extras = ["server"], marker = "extra == 'dev'" },
     { name = "gunicorn", marker = "extra == 'server'", specifier = ">=21.0" },
     { name = "httpx", specifier = ">=0.24" },
     { name = "mcp", marker = "extra == 'dev'" },

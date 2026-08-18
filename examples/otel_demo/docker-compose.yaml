@@ -1,0 +1,36 @@
+# Local OTEL stack for the feast-mcp demo:
+#   - otel-collector: receives OTLP from feast-mcp, forwards to OpenObserve
+#   - openobserve:    stores the logs and serves the UI at http://localhost:5080
+#
+#   docker compose up -d        # start both
+#   docker compose logs -f      # watch the collector
+#   docker compose down         # stop (add -v to also wipe stored logs)
+#
+# OpenObserve UI login:  root@example.com / Complexpass@123
+
+services:
+  openobserve:
+    image: openobserve/openobserve:latest
+    environment:
+      ZO_ROOT_USER_EMAIL: root@example.com
+      ZO_ROOT_USER_PASSWORD: "Complexpass@123"
+      ZO_DATA_DIR: /data
+    ports:
+      - "5080:5080" # web UI + OTLP HTTP ingestion
+      - "5081:5081" # OTLP gRPC ingestion
+    volumes:
+      - openobserve-data:/data
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+    depends_on:
+      - openobserve
+
+volumes:
+  openobserve-data:
