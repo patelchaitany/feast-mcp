@@ -32,7 +32,8 @@ feast_mcp/
   auth.py            Auth helpers (passthrough and OIDC).
   config.py          Reads settings from flags, env vars, and YAML.
   session_storage/   Builds the shared store used for OIDC login state.
-  observability/     Sets up logging to the console and OpenTelemetry.
+  observability/     Sets up console + OpenTelemetry logging, plus a span
+                     per request so logs share a trace id.
 ```
 
 The big idea: **the MCP server owns no data.** Each tool takes some arguments,
@@ -150,7 +151,7 @@ Some features need extra packages so the base install stays small:
 |---|---|
 | YAML config file | `pip install 'feast-mcp[yaml]'` |
 | Multi-worker serving | `pip install 'feast-mcp[server]'` |
-| OpenTelemetry logs | `pip install 'feast-mcp[otel]'` |
+| OpenTelemetry logs + traces | `pip install 'feast-mcp[otel]'` |
 | A session-storage backend | `pip install 'py-key-value-aio[redis]'` (or `valkey`, `postgresql`, …) |
 
 The code is written so that if one of these packages is missing, the server

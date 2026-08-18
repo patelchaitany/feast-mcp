@@ -307,11 +307,18 @@ feast-mcp \
   --log-format json
 ```
 
+With the extra installed, each HTTP request is wrapped in a trace, so all of a
+request's log lines share a `trace_id` — filter by it in your backend to see
+everything that happened during one request. The traces themselves are
+exported too. See [`examples/otel_demo`](../examples/otel_demo/README.md) for a
+runnable Collector + OpenObserve UI setup you can point this at.
+
 ## Quick checklist for production
 
 - [ ] Use `--transport http`.
 - [ ] Put it behind HTTPS (a reverse proxy or ingress).
 - [ ] Turn on session affinity if you run more than one copy.
 - [ ] If using OIDC with more than one copy, configure shared session storage.
-- [ ] Set `--log-format json` and an OTEL endpoint for monitoring.
+- [ ] Set `--log-format json` and an OTEL endpoint for monitoring (gives you
+      trace-correlated logs and exported traces).
 - [ ] Set liveness/readiness probes.
