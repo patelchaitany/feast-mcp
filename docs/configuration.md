@@ -157,6 +157,12 @@ Notes:
 - Every request is logged with its auth context: the user (from the token),
   the client IP (using `X-Forwarded-For` / `X-Real-IP` when behind a proxy),
   and the request method and path. This happens at the `INFO` level.
+- Each HTTP request is wrapped in an OpenTelemetry span, so all log lines for
+  one request share a `trace_id` (shown as `[trace=…]` in text logs and a
+  `trace_id` field in JSON logs) — making it easy to group a single request's
+  logs. With the OTEL SDK installed it's a real trace id and the span is
+  exported too; without it, a generated per-request id keeps console logs
+  groupable.
 - The standard OpenTelemetry variables also work as a fallback:
   `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL`,
   `OTEL_SERVICE_NAME`, and `OTEL_EXPORTER_OTLP_HEADERS`.

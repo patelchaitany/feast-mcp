@@ -165,8 +165,17 @@ context per request: the authenticated **user** (from the token claims —
 (`METHOD /path`). Unauthenticated requests are logged too. Example:
 
 ```
-INFO feast_mcp.auth: Authenticated request: user=alice (client_id=feast-mcp) ip=10.0.0.7 request=POST /mcp
+INFO feast_mcp.auth [trace=4bf92f3577b34da6a3ce929d0e0e4736] Authenticated request: user=alice (client_id=feast-mcp) ip=10.0.0.7 request=POST /mcp
 ```
+
+**Request correlation (trace ids).** Each incoming HTTP request is wrapped in
+an OpenTelemetry span, so *every* log line emitted while handling that request
+— tool dispatch, the auth line above, upstream calls — carries the **same**
+`trace_id`. This lets you group "all logs for one request" in your backend
+(`trace_id` field in JSON logs, `[trace=…]` in text logs). When the OTEL SDK is
+installed the id is a real W3C trace id and the span itself is exported too, so
+logs and traces line up and you can jump between them. Without the SDK, a
+generated per-request id is used so console logs are still groupable.
 
 OTEL export is optional — install the extra:
 
@@ -213,6 +222,9 @@ observability:
 
 If OTEL is requested but the SDK/exporter isn't installed, the server logs a
 warning and continues with console logging only.
+
+See [`examples/otel_demo`](examples/otel_demo/README.md) for a runnable setup
+with a local OpenTelemetry Collector that prints the exported log records.
 
 ## IDE / client configuration
 

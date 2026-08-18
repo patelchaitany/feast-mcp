@@ -26,12 +26,18 @@ from feast_mcp.auth import create_oidc_auth
 from feast_mcp.client import FeastClient
 from feast_mcp.config import Config, load_config
 from feast_mcp.observability import (
+    RequestTracingMiddleware,
     configure_logging,
+    configure_tracing,
     load_logging_config,
     shutdown_logging,
+    shutdown_tracing,
 )
 
 logger = logging.getLogger(__name__)
+
+#: Tracer used to open a span per HTTP request (None when OTEL is off/absent).
+_tracer = None
 
 mcp = FastMCP(
     "feast",
@@ -101,7 +107,10 @@ def _build_http_app(cfg: Config):
         kwargs = {"path": "/sse", "transport": "sse"}
     else:
         kwargs = {"path": "/mcp", "transport": cfg.server.transport}
-    return mcp.http_app(**kwargs)
+    app = mcp.http_app(**kwargs)
+    # Outermost layer so the request span is active for the whole request and
+    # every downstream log line is correlated to one trace id.
+    return RequestTracingMiddleware(app, tracer=_tracer)
 
 
 def _run_uvicorn(cfg: Config) -> None:
@@ -139,7 +148,8 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Feast MCP Server")
     parser.add_argument(
-        "--config", default=None,
+        "--config",
+        default=None,
         help="Path to feast_mcp.yaml config file",
     )
     parser.add_argument("--feast-url", default=None)
@@ -156,7 +166,9 @@ def main() -> None:
 
     auth_group = parser.add_argument_group("authentication")
     auth_group.add_argument(
-        "--auth-mode", choices=["passthrough", "oidc"], default=None,
+        "--auth-mode",
+        choices=["passthrough", "oidc"],
+        default=None,
     )
     auth_group.add_argument("--oidc-discovery-url", default=None)
     auth_group.add_argument("--oidc-client-id", default=None)
@@ -188,7 +200,11 @@ def main() -> None:
 
     # Configure logging first so all subsequent setup is visible.
     log_cli = {k: v for k, v in vars(args).items() if v is not None and k != "config"}
-    configure_logging(load_logging_config(config_path=args.config, cli_args=log_cli))
+    log_cfg = load_logging_config(config_path=args.config, cli_args=log_cli)
+    configure_logging(log_cfg)
+    # Set up tracing so each request gets a span (and trace-correlated logs).
+    global _tracer
+    _tracer = configure_tracing(log_cfg)
 
     cli_args = {k: v for k, v in vars(args).items() if v is not None and k != "config"}
     cfg = load_config(config_path=args.config, cli_args=cli_args)
@@ -200,7 +216,9 @@ def main() -> None:
             "(via CLI, env var, or feast_mcp.yaml)"
         )
 
-    if cfg.auth.mode == "oidc" and not all([cfg.auth.discovery_url, cfg.auth.client_id]):
+    if cfg.auth.mode == "oidc" and not all(
+        [cfg.auth.discovery_url, cfg.auth.client_id]
+    ):
         parser.error(
             "--oidc-discovery-url and --oidc-client-id are required with --auth-mode oidc"
         )
@@ -225,6 +243,7 @@ def main() -> None:
         else:
             _run_uvicorn(cfg)
     finally:
+        shutdown_tracing()
         shutdown_logging()
 
 

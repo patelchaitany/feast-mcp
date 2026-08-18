@@ -12,6 +12,7 @@ the server logs a warning and continues with stdout only.
 
 from __future__ import annotations
 
+import contextvars
 import json
 import logging
 import sys
@@ -22,6 +23,17 @@ from feast_mcp.observability.config import LoggingConfig
 
 #: Root logger name; every module logger is a child of this.
 ROOT_LOGGER_NAME = "feast_mcp"
+
+#: Per-request correlation id used when a real OpenTelemetry trace id is not
+#: available (OTEL SDK not installed, or outside an HTTP request). The request
+#: middleware sets it; ``TraceContextFilter`` reads it so console logs for one
+#: request still share an id even without OTEL.
+request_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "feast_mcp_request_id", default=None
+)
+
+#: Placeholder shown when a record has no trace/request context.
+NO_TRACE = "-"
 
 #: Third-party loggers whose output we adopt so their lines land on the same
 #: console + OTEL handlers as our own. FastMCP (and the MCP SDK / uvicorn /
@@ -43,6 +55,53 @@ BRIDGED_LOGGERS = (
 _otel_provider = None
 
 
+#: Lazily-imported OpenTelemetry trace API (or None if not installed).
+_trace_api = None
+_trace_import_attempted = False
+
+
+def _current_trace_ids() -> tuple[Optional[str], Optional[str]]:
+    """Return ``(trace_id_hex, span_id_hex)`` of the active span, if any.
+
+    Reads the current OpenTelemetry span context. Returns ``(None, None)``
+    when the SDK is missing or there is no active/valid span.
+    """
+    global _trace_api, _trace_import_attempted
+    if not _trace_import_attempted:
+        _trace_import_attempted = True
+        try:
+            from opentelemetry import trace as _trace
+
+            _trace_api = _trace
+        except ImportError:
+            _trace_api = None
+    if _trace_api is None:
+        return None, None
+    ctx = _trace_api.get_current_span().get_span_context()
+    if not ctx or not ctx.trace_id:
+        return None, None
+    return format(ctx.trace_id, "032x"), format(ctx.span_id, "016x")
+
+
+class TraceContextFilter(logging.Filter):
+    """Stamps every record with ``trace_id`` / ``span_id`` for correlation.
+
+    Prefers the active OpenTelemetry span (so log lines line up with the
+    trace in your backend); falls back to the per-request id set by the
+    request middleware; and finally to ``NO_TRACE`` so formatters can always
+    reference the fields.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        trace_id, span_id = _current_trace_ids()
+        if trace_id is None:
+            trace_id = request_id_var.get() or NO_TRACE
+            span_id = NO_TRACE
+        record.trace_id = trace_id
+        record.span_id = span_id or NO_TRACE
+        return True
+
+
 class JsonFormatter(logging.Formatter):
     """Minimal structured formatter for machine-readable stdout logs."""
 
@@ -55,6 +114,12 @@ class JsonFormatter(logging.Formatter):
             "logger": record.name,
             "message": record.getMessage(),
         }
+        trace_id = getattr(record, "trace_id", None)
+        if trace_id and trace_id != NO_TRACE:
+            payload["trace_id"] = trace_id
+            span_id = getattr(record, "span_id", None)
+            if span_id and span_id != NO_TRACE:
+                payload["span_id"] = span_id
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
         return json.dumps(payload)
@@ -63,7 +128,9 @@ class JsonFormatter(logging.Formatter):
 def _build_formatter(fmt: str) -> logging.Formatter:
     if fmt == "json":
         return JsonFormatter()
-    return logging.Formatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s")
+    return logging.Formatter(
+        "%(asctime)s %(levelname)-8s %(name)s [trace=%(trace_id)s] %(message)s"
+    )
 
 
 def _parse_headers(headers: Optional[str]) -> Optional[dict]:
@@ -163,6 +230,11 @@ def configure_logging(config: LoggingConfig) -> logging.Logger:
     level = getattr(logging, config.level, logging.INFO)
     formatter = _build_formatter(config.format)
 
+    # Shared across all handlers so every emitted record — including the text
+    # formatter's ``%(trace_id)s`` field — is stamped with the current request's
+    # trace/span (or fallback request id) before it is formatted or exported.
+    trace_filter = TraceContextFilter()
+
     handlers: list[logging.Handler] = []
 
     if config.stdio:
@@ -172,12 +244,14 @@ def configure_logging(config: LoggingConfig) -> logging.Logger:
         stream = logging.StreamHandler(sys.stderr)
         stream.setFormatter(formatter)
         stream.setLevel(level)
+        stream.addFilter(trace_filter)
         handlers.append(stream)
 
     if config.otel_enabled:
         otel_handler = _build_otel_handler(config)
         if otel_handler is not None:
             otel_handler.setLevel(level)
+            otel_handler.addFilter(trace_filter)
             handlers.append(otel_handler)
 
     logger = logging.getLogger(ROOT_LOGGER_NAME)

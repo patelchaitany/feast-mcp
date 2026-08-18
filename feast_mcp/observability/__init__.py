@@ -1,10 +1,10 @@
 """Observability for the Feast MCP server: logging fanned out to stdout and OTEL.
 
-    from feast_mcp.observability import configure_logging, load_logging_config, get_logger
+from feast_mcp.observability import configure_logging, load_logging_config, get_logger
 
-    configure_logging(load_logging_config())
-    log = get_logger(__name__)
-    log.info("hello")   # -> stdout and, if configured, the OTLP endpoint
+configure_logging(load_logging_config())
+log = get_logger(__name__)
+log.info("hello")   # -> stdout and, if configured, the OTLP endpoint
 """
 
 from feast_mcp.observability.config import LoggingConfig, load_logging_config
@@ -13,7 +13,13 @@ from feast_mcp.observability.logger import (
     JsonFormatter,
     configure_logging,
     get_logger,
+    request_id_var,
     shutdown_logging,
+)
+from feast_mcp.observability.tracing import (
+    RequestTracingMiddleware,
+    configure_tracing,
+    shutdown_tracing,
 )
 
 __all__ = [
@@ -24,4 +30,8 @@ __all__ = [
     "shutdown_logging",
     "JsonFormatter",
     "ROOT_LOGGER_NAME",
+    "request_id_var",
+    "configure_tracing",
+    "shutdown_tracing",
+    "RequestTracingMiddleware",
 ]
