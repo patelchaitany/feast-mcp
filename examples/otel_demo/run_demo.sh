@@ -40,7 +40,7 @@ FEAST_PID=$!
 sleep 5
 
 echo "==> Starting feast-mcp with OTLP export -> $OTEL_ENDPOINT"
-feast-mcp \
+feast mcp \
   --feast-url "$FEAST_URL" \
   --transport http --port 8000 \
   --log-level INFO \

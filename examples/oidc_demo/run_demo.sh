@@ -86,7 +86,7 @@ $PYTHON setup_data.py
 echo ""
 echo "==> Step 4/6: Starting Feast feature server on port $FEAST_PORT..."
 cd feature_repo
-feast serve --host 0.0.0.0 --port "$FEAST_PORT" --no-feature-log &
+feast serve --host 0.0.0.0 --port "$FEAST_PORT" --no-access-log &
 FEAST_PID=$!
 cd "$SCRIPT_DIR"
 
@@ -112,7 +112,7 @@ fi
 echo ""
 echo "==> Step 5/6: Starting feast-mcp server on port $MCP_PORT..."
 echo "    OIDC config loaded from .env"
-feast-mcp \
+feast mcp \
     --feast-url "http://localhost:${FEAST_PORT}" \
     --transport sse \
     --port "$MCP_PORT" &

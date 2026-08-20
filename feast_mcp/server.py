@@ -15,9 +15,10 @@ Configuration is loaded from (highest priority first):
   3. ``feast_mcp.yaml`` config file (or ``--config path``)
 """
 
-import argparse
 import logging
+from typing import Optional
 
+import click
 from dotenv import load_dotenv
 
 from fastmcp import FastMCP
@@ -143,75 +144,34 @@ def _run_gunicorn(cfg: Config) -> None:
 # ---------------------------------------------------------------------------
 
 
-def main() -> None:
-    load_dotenv()
+def run_server(
+    config_path: Optional[str] = None,
+    cli_args: Optional[dict] = None,
+) -> None:
+    """Configure and run the MCP server.
 
-    parser = argparse.ArgumentParser(description="Feast MCP Server")
-    parser.add_argument(
-        "--config",
-        default=None,
-        help="Path to feast_mcp.yaml config file",
-    )
-    parser.add_argument("--feast-url", default=None)
-    parser.add_argument("--registry-url", default=None)
-    parser.add_argument("--timeout", type=float, default=None)
-    parser.add_argument(
-        "--transport",
-        choices=["stdio", "http", "streamable-http", "sse"],
-        default=None,
-    )
-    parser.add_argument("--host", default=None)
-    parser.add_argument("--port", type=int, default=None)
-    parser.add_argument("--workers", type=int, default=None)
+    Deliberately free of any CLI framework so the same body backs both the
+    standalone ``feast-mcp`` script and Feast's ``feast mcp`` subcommand.
 
-    auth_group = parser.add_argument_group("authentication")
-    auth_group.add_argument(
-        "--auth-mode",
-        choices=["passthrough", "oidc"],
-        default=None,
-    )
-    auth_group.add_argument("--oidc-discovery-url", default=None)
-    auth_group.add_argument("--oidc-client-id", default=None)
-    auth_group.add_argument("--oidc-client-secret", default=None)
-    auth_group.add_argument("--oidc-audience", default=None)
-    auth_group.add_argument("--base-url", default=None)
-    auth_group.add_argument(
-        "--session-storage-backend",
-        default=None,
-        help=(
-            "Shared backend for OAuth state (redis, valkey, postgresql, "
-            "mongodb, disk, memory). Backend options come from feast_mcp.yaml. "
-            "Required for OIDC auth behind a load balancer with >1 replica."
-        ),
-    )
-
-    log_group = parser.add_argument_group("observability")
-    log_group.add_argument("--log-level", default=None)
-    log_group.add_argument("--log-format", choices=["text", "json"], default=None)
-    log_group.add_argument(
-        "--otel-endpoint",
-        default=None,
-        help="OTLP endpoint for log export (enables OTEL when set), e.g. http://localhost:4317",
-    )
-    log_group.add_argument("--otel-protocol", choices=["grpc", "http"], default=None)
-    log_group.add_argument("--otel-service-name", default=None)
-
-    args = parser.parse_args()
+    ``cli_args`` holds only the options that were *explicitly supplied*, keyed
+    by click destination name. Options the user did not pass must be absent
+    rather than ``None``: :func:`load_config` treats any present key as an
+    override, so a stray default here would silently outrank ``feast_mcp.yaml``.
+    """
+    cli_args = cli_args or {}
 
     # Configure logging first so all subsequent setup is visible.
-    log_cli = {k: v for k, v in vars(args).items() if v is not None and k != "config"}
-    log_cfg = load_logging_config(config_path=args.config, cli_args=log_cli)
+    log_cfg = load_logging_config(config_path=config_path, cli_args=cli_args)
     configure_logging(log_cfg)
     # Set up tracing so each request gets a span (and trace-correlated logs).
     global _tracer
     _tracer = configure_tracing(log_cfg)
 
-    cli_args = {k: v for k, v in vars(args).items() if v is not None and k != "config"}
-    cfg = load_config(config_path=args.config, cli_args=cli_args)
+    cfg = load_config(config_path=config_path, cli_args=cli_args)
 
     # --- Validate ---
     if not cfg.features.url and not cfg.registry.url:
-        parser.error(
+        raise click.UsageError(
             "At least one of --feast-url or --registry-url must be provided "
             "(via CLI, env var, or feast_mcp.yaml)"
         )
@@ -219,12 +179,12 @@ def main() -> None:
     if cfg.auth.mode == "oidc" and not all(
         [cfg.auth.discovery_url, cfg.auth.client_id]
     ):
-        parser.error(
+        raise click.UsageError(
             "--oidc-discovery-url and --oidc-client-id are required with --auth-mode oidc"
         )
 
     if cfg.server.transport == "sse" and cfg.server.workers and cfg.server.workers > 1:
-        parser.error(
+        raise click.UsageError(
             "SSE transport does not support multiple workers. "
             "Use --transport http for multi-worker scaling, "
             "or remove --workers for single-process SSE"
@@ -245,6 +205,133 @@ def main() -> None:
     finally:
         shutdown_tracing()
         shutdown_logging()
+
+
+# Every option below defaults to ``None`` on purpose. Real defaults live in
+# ``feast_mcp.config`` / ``feast_mcp.observability.config``; declaring them
+# here would put the value into ``cli_args`` unconditionally and stop
+# ``feast_mcp.yaml`` and the environment from ever taking effect. Defaults are
+# therefore documented in the help text instead of via ``show_default``.
+@click.command("mcp")
+@click.option(
+    "--config",
+    default=None,
+    help="Path to feast_mcp.yaml config file.",
+)
+@click.option(
+    "--feast-url",
+    default=None,
+    help="URL of the Feast feature server to proxy (mounts the feature tools).",
+)
+@click.option(
+    "--registry-url",
+    default=None,
+    help="URL of the Feast REST registry server to proxy (mounts the registry tools).",
+)
+@click.option(
+    "--timeout",
+    type=float,
+    default=None,
+    help="HTTP timeout in seconds for upstream calls.  [default: 30]",
+)
+@click.option(
+    "--transport",
+    type=click.Choice(["stdio", "http", "streamable-http", "sse"]),
+    default=None,
+    help="MCP transport to serve.  [default: stdio]",
+)
+@click.option(
+    "--host",
+    default=None,
+    help="Bind address for HTTP transports.  [default: 0.0.0.0]",
+)
+@click.option(
+    "--port",
+    type=int,
+    default=None,
+    help="Bind port for HTTP transports.  [default: 8000]",
+)
+@click.option(
+    "--workers",
+    type=int,
+    default=None,
+    help="Run under gunicorn with this many workers (not supported by sse).",
+)
+# --- authentication ---
+@click.option(
+    "--auth-mode",
+    type=click.Choice(["passthrough", "oidc"]),
+    default=None,
+    help="Auth mode.  [default: passthrough]",
+)
+@click.option("--oidc-discovery-url", default=None, help="OIDC discovery document URL.")
+@click.option("--oidc-client-id", default=None, help="OIDC client id.")
+@click.option("--oidc-client-secret", default=None, help="OIDC client secret.")
+@click.option("--oidc-audience", default=None, help="Expected OIDC token audience.")
+@click.option(
+    "--base-url",
+    default=None,
+    help="Public base URL of this server, used to build OAuth redirect URIs.",
+)
+@click.option(
+    "--session-storage-backend",
+    default=None,
+    help=(
+        "Shared backend for OAuth state (redis, valkey, postgresql, mongodb, "
+        "disk, memory). Backend options come from feast_mcp.yaml. Required for "
+        "OIDC auth behind a load balancer with >1 replica."
+    ),
+)
+# --- observability ---
+@click.option("--log-level", default=None, help="Log level.  [default: INFO]")
+@click.option(
+    "--log-format",
+    type=click.Choice(["text", "json"]),
+    default=None,
+    help="Console log format.  [default: text]",
+)
+@click.option(
+    "--otel-endpoint",
+    default=None,
+    help=(
+        "OTLP endpoint for log and span export (enables OTEL when set), "
+        "e.g. http://localhost:4317"
+    ),
+)
+@click.option(
+    "--otel-protocol",
+    type=click.Choice(["grpc", "http"]),
+    default=None,
+    help="OTLP protocol.  [default: grpc]",
+)
+@click.option(
+    "--otel-service-name",
+    default=None,
+    help="service.name reported to OTEL.  [default: feast-mcp]",
+)
+def mcp_cli(config: Optional[str], **options: object) -> None:
+    """Run the Feast MCP server.
+
+    Serves the Model Context Protocol in its own process, proxying to a
+    running Feast feature server and/or REST registry server. At least one of
+    --feast-url or --registry-url is required.
+
+    This is separate from `feast serve` with `mcp_enabled: true`, which mounts
+    an OpenAPI-derived MCP endpoint inside the feature server itself.
+
+    Settings resolve in priority order: CLI options, environment variables,
+    feast_mcp.yaml, defaults.
+    """
+    load_dotenv()
+    run_server(
+        config_path=config,
+        cli_args={key: value for key, value in options.items() if value is not None},
+    )
+
+
+def main() -> None:
+    """Console-script entry point for ``feast-mcp``."""
+    mcp_cli()
 
 
 if __name__ == "__main__":
