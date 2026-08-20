@@ -19,6 +19,7 @@ Feast servers over HTTP:
 | [Configuration](configuration.md) | Set URLs, choose a transport, turn on auth, logging, and OTEL |
 | [Deployment](deployment.md) | Run it for real — locally, with Docker, or on Kubernetes |
 | [Development](development.md) | Change the code, run the tests, add a new tool |
+| [Architecture](architecture/README.md) | Understand *why* it's built this way — the key design decisions |
 
 ## The 30-second version
 
